@@ -1,0 +1,8 @@
+{
+  "Name": "Name That Beaver",
+  "Version": "0.1",
+  "Id": "name.that.beaver",
+  "MinimumGameVersion": "0.0.0.0",
+  "Description": "A mod that allows beaver names to be taken from a list of prepared names",
+  "RequiredMods": []
+}
