@@ -39,8 +39,7 @@ namespace NameThatBeaver
                     BeaverNameServicePatch.ModActive = false;
                 }
                 else
-                {
-                    Harmony.DEBUG = true;
+                {  
                     _harmonyInstance = new Harmony("NameThatBeaver");
                     _harmonyInstance.PatchAll();
                 }
