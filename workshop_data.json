@@ -1,8 +1,8 @@
 {
   "ItemId": "3278055435",
   "Name": "Name That Beaver",
-  "Visibility": "Private",
-  "UpdateDescription": true,
+  "Visibility": "Public",
+  "UpdateDescription": false,
   "UpdateVisibility": true,
   "UpdatePreview": true
 }

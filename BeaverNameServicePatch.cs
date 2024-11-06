@@ -3,24 +3,22 @@ using HarmonyLib;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Timberborn.Beavers;
 using Timberborn.Characters;
-using Timberborn.Persistence;
-using Timberborn.SettlementNameSystem;
 using Timberborn.SingletonSystem;
 
 namespace NameThatBeaver
 {
     [HarmonyPatch]
-    internal class BeaverNameServicePatch : ILoadableSingleton, ISaveableSingleton
+    internal class BeaverNameServicePatch : ILoadableSingleton
     {
         private static bool _modActive = true;
         private static List<string>? _namePool;
         private static List<string>? _usedNames;
-        private readonly SettlementNameService _settlementNameService;
+        private static string[]? _originalNames;
         private readonly EventBus _eventBus;
         private static readonly ConsoleLogger _logger = new ConsoleLogger("NameThatBeaver.BeaverNameServicePatch");
+        private readonly FileSystemWatcher? _watcher;
 
         public static bool ModActive
         {
@@ -32,10 +30,39 @@ namespace NameThatBeaver
             }
         }
 
-        public BeaverNameServicePatch(SettlementNameService settlementNameService, EventBus eventBus)
+        public BeaverNameServicePatch(EventBus eventBus)
         {
-            _settlementNameService = settlementNameService;
             _eventBus = eventBus;
+            if (!ModActive) return;
+            _usedNames = new List<string>();
+
+            if (Options.Settings.RefreshNamePoolOnFileChange)
+            {
+                _watcher = new FileSystemWatcher
+                {
+                    EnableRaisingEvents = true,
+                    Path = Common.GetModFolderPath(),
+                    Filter = $"beavers.names"
+                };
+                _watcher.Changed += Watcher_Changed;
+            }
+            _originalNames = File.ReadAllLines(Options.Settings.BeaversNamesFileLocation);
+        }
+
+        private void Watcher_Changed(object sender, FileSystemEventArgs e)
+        {
+            _originalNames = File.ReadAllLines(e.FullPath);
+            var modifiedNames = _originalNames.Except(_namePool.Union(_usedNames)).ToArray();
+            if (modifiedNames.Length == 0) return;
+            _namePool!.AddRange(modifiedNames);
+        }
+
+        public void Load()
+        {
+            if (!ModActive)
+                return;
+            _eventBus.Register(this);
+            _namePool = _originalNames?.ToList();
         }
 
         [OnEvent]
@@ -51,29 +78,18 @@ namespace NameThatBeaver
             else
             {
                 string beaverName = character.FirstName;
-                string? foundName = _usedNames?.Find(s => s == beaverName);
-                if (foundName == null)
-                    return;
-                _usedNames!.Remove(foundName);
-                _namePool!.Add(foundName);
+                _usedNames!.Remove(beaverName);
+                if (_originalNames!.Contains(beaverName))
+                    _namePool!.Add(beaverName);
             }
         }
 
-        public void Save(ISingletonSaver singletonSaver)
+        [OnEvent]
+        public void OnCharacterCreated(CharacterCreatedEvent characterCreatedEvent)
         {
-            if (!ModActive)
-                return;
-            File.WriteAllLines(Path.Combine(Common.GetPersistentDataPath(), _settlementNameService.SettlementName + ".usednames"), _usedNames!);
-        }
-
-        public void Load()
-        {
-            if (!ModActive)
-                return;
-            _eventBus.Register(this);
-            string path = Path.Combine(Common.GetPersistentDataPath(), _settlementNameService.SettlementName + ".usednames");
-            _usedNames = !File.Exists(path) ? new List<string>() : File.ReadAllLines(path).ToList();
-            _namePool = File.ReadAllLines(Path.Combine(Options.Settings.NamesListLocation)).ToList().Except(_usedNames).ToList();
+            var beaverName = characterCreatedEvent.Character.FirstName;
+            _usedNames!.Add(beaverName);
+            _namePool!.Remove(beaverName);
         }
 
         private static int GetRandomIndex(IList<string> names) => UnityEngine.Random.Range(0, names.Count);
@@ -90,10 +106,10 @@ namespace NameThatBeaver
         private static string GetName()
         {
             int randomIndex = GetRandomIndex(_namePool!);
-            string input = _namePool![randomIndex];
-            _namePool.RemoveAt(randomIndex);
-            _usedNames?.Add(Regex.Replace(input, "\\s-\\s.+", string.Empty));
-            return input;
+            string name = _namePool![randomIndex];
+            _namePool.Remove(name);
+            _usedNames?.Add(name);
+            return name;
         }
     }
 }

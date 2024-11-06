@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Timberborn.SingletonSystem;
 using UnityEngine;
+using Timer = System.Timers.Timer;
 
 namespace NameThatBeaver
 {
@@ -16,33 +17,59 @@ namespace NameThatBeaver
         private readonly Harmony? _harmonyInstance;
         private string _modFolder = string.Empty;
         private string _persistentDataPath = string.Empty;
-        private readonly NameThatBeaverSettings? _settings;
+        private readonly Timer? _timer;
 
         public NameThatBeaverInitializer()
         {
             if (!SetModFolderPath())
-                BeaverNameServicePatch.ModActive = false;
-            else if (!SetPersistentPath())
             {
                 BeaverNameServicePatch.ModActive = false;
+                return;
             }
-            else
+
+            if (!SetPersistentPath())
             {
-                _settings = Options.Settings;
-                if (_settings == null)
+                BeaverNameServicePatch.ModActive = false;
+                return;
+            }
+
+            if (!ParseNamesList())
+            {
+                BeaverNameServicePatch.ModActive = false;
+                return;
+            }
+
+            if (Options.Settings.NamesListIsRemote)
+            {
+                if (!DownloadList())
                 {
-                    _logger.Error("Could not create settings! Mod NOT active");
                     BeaverNameServicePatch.ModActive = false;
+                    return;
                 }
-                else if (!ParseNamesList())
+                if (Options.Settings.RedownloadListAfter > 0)
                 {
-                    BeaverNameServicePatch.ModActive = false;
+                    _timer = new Timer(TimeSpan.FromSeconds(Options.Settings.RedownloadListAfter).TotalMilliseconds)
+                    {
+                        AutoReset = false
+                    };
+                    _timer.Elapsed += Timer_Elapsed;
+                    _timer.Start();
                 }
-                else
-                {  
-                    _harmonyInstance = new Harmony("NameThatBeaver");
-                    _harmonyInstance.PatchAll();
-                }
+            }
+
+            _harmonyInstance = new Harmony("NameThatBeaver");
+            _harmonyInstance.PatchAll();
+        }
+
+        private void Timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            try
+            {
+                DownloadList();
+            }
+            finally
+            {
+                _timer!.Start();
             }
         }
 
@@ -95,68 +122,78 @@ namespace NameThatBeaver
 
         private bool ParseNamesList()
         {
-            string nameListPath = _settings?.NamesListLocation!;
+            string nameListPath = Options.Settings.NamesListLocation;
             if (string.IsNullOrWhiteSpace(nameListPath))
             {
-                string namesListLocation = Path.Combine(Common.GetModFolderPath(), "beavers.names");
+                string namesListDefaultLocation = Path.Combine(Common.GetModFolderPath(), "beavers.names");
                 _logger.Info("Location for the list of names is not set");
-                _logger.Info("Setting default location '" + namesListLocation + "'");
-                Options.Settings.NamesListLocation = namesListLocation;
-                nameListPath = namesListLocation;
+                _logger.Info($"Using default location of \"{namesListDefaultLocation}\"");
+                Options.Settings.NamesListLocation = namesListDefaultLocation;
+                nameListPath = namesListDefaultLocation;
             }
             if (Uri.TryCreate(nameListPath, UriKind.Absolute, out Uri result) && (result.Scheme == Uri.UriSchemeHttp || result.Scheme == Uri.UriSchemeHttps))
-                return DownloadList(result);
-            if (File.Exists(nameListPath))
+            {
+                Options.Settings.NamesListIsRemote = true;
                 return true;
+            }
+
+            if (File.Exists(nameListPath))
+            {
+                Options.Settings.BeaversNamesFileLocation = nameListPath;
+                return true;
+            }
+
             _logger.Error("List '" + nameListPath + "' does not exist. Mod NOT active");
             return false;
         }
 
-        private bool DownloadList(Uri uri)
+        private bool DownloadList()
         {
-            _logger.Info(string.Format("Path resovled to remote address '{0}'.", (object)uri));
+            Uri.TryCreate(Options.Settings.NamesListLocation, UriKind.Absolute, out Uri result);
+            _logger.Info(string.Format("Path resovled to remote address '{0}'.", result));
             if (Application.internetReachability == NetworkReachability.NotReachable)
             {
                 _logger.Error("Cannot download list. Game reports no internet access");
                 return false;
             }
-            _logger.Info(string.Format("Attempting dowload from '{0}', timeout {1} seconds", (object)uri, (object)10));
-            using (HttpClient client = new HttpClient())
+            _logger.Info(string.Format("Attempting dowload from '{0}', timeout {1} seconds", result, 10));
+
+            using HttpClient client = new HttpClient();
+
+            try
             {
-                try
+                HttpRequestMessage req = new HttpRequestMessage(HttpMethod.Get, result);
+                req.Headers.Add("Accept", "text/plain");
+                HttpResponseMessage response = Task.Run<HttpResponseMessage>(() => client.SendAsync(req, new CancellationTokenSource(TimeSpan.FromSeconds(10.0)).Token)).Result;
+                if (response != null && response.IsSuccessStatusCode)
                 {
-                    HttpRequestMessage req = new HttpRequestMessage(HttpMethod.Get, uri);
-                    req.Headers.Add("Accept", "text/plain");
-                    HttpResponseMessage response = Task.Run<HttpResponseMessage>((Func<Task<HttpResponseMessage>>)(() => client.SendAsync(req, new CancellationTokenSource(TimeSpan.FromSeconds(10.0)).Token))).Result;
-                    if (response != null && response.IsSuccessStatusCode)
+                    string mediaType = response.Content.Headers.ContentType.MediaType;
+                    if (string.IsNullOrWhiteSpace(mediaType) || mediaType != "text/plain")
                     {
-                        string mediaType = response.Content.Headers.ContentType.MediaType;
-                        if (string.IsNullOrWhiteSpace(mediaType) || mediaType != "text/plain")
-                        {
-                            _logger.Error("Content type mismatch.");
-                            return false;
-                        }
-                        _logger.Info("List download complete.");
-                        string result = Task.Run<string>((Func<Task<string>>)(() => response.Content.ReadAsStringAsync()), new CancellationTokenSource(TimeSpan.FromSeconds(5.0)).Token).Result;
-                        if (string.IsNullOrWhiteSpace(result))
-                        {
-                            _logger.Error("Donwloaded list is empty");
-                            return false;
-                        }
-                        _logger.Info(string.Format("Found {0} names in the list", (object)result.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).Length));
-                        string path = Path.Combine(_modFolder, "beavers.names");
-                        File.WriteAllText(path, result);
-                        _logger.Info("Saved list at '" + path + "'");
-                        return true;
+                        _logger.Error("Content type mismatch.");
+                        return false;
                     }
-                    _logger.Error("Download failed");
-                    return false;
+                    _logger.Info("List download complete.");
+                    string responseContent = Task.Run<string>(() => response.Content.ReadAsStringAsync(), new CancellationTokenSource(TimeSpan.FromSeconds(5.0)).Token).Result;
+                    if (string.IsNullOrWhiteSpace(responseContent))
+                    {
+                        _logger.Error("Donwloaded list is empty");
+                        return false;
+                    }
+                    _logger.Info(string.Format("Found {0} names in the list", responseContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).Length));
+                    string path = Path.Combine(_modFolder, "beavers.names");
+                    File.WriteAllText(path, responseContent);
+                    _logger.Info("Saved list at '" + path + "'");
+                    Options.Settings.BeaversNamesFileLocation = path;
+                    return true;
                 }
-                catch
-                {
-                    _logger.Error("Failed to dowload the list.");
-                    return false;
-                }
+                _logger.Error("Download failed");
+                return false;
+            }
+            catch
+            {
+                _logger.Error("Failed to dowload the list.");
+                return false;
             }
         }
     }
