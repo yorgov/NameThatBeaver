@@ -1,4 +1,6 @@
 {
   "NamesListLocation": "",
-  "ReuseNames": true
+  "ReuseNames": false,
+  "RedownloadListAfter": 0,
+  "RefreshNamePoolOnFileChange":  false
 }
