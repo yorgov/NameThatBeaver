@@ -18,9 +18,12 @@ namespace NameThatBeaver
         private string _modFolder = string.Empty;
         private string _persistentDataPath = string.Empty;
         private readonly Timer? _timer;
+        private readonly NameThatBeaverSettings _settings;
 
-        public NameThatBeaverInitializer()
+        public NameThatBeaverInitializer(NameThatBeaverSettings settings)
         {
+            _settings = settings;
+
             if (!SetModFolderPath())
             {
                 BeaverNameServicePatch.ModActive = false;
@@ -39,16 +42,16 @@ namespace NameThatBeaver
                 return;
             }
 
-            if (Options.Settings.NamesListIsRemote)
+            if (settings.NamesListIsRemote)
             {
                 if (!DownloadList())
                 {
                     BeaverNameServicePatch.ModActive = false;
                     return;
                 }
-                if (Options.Settings.RedownloadListAfter > 0)
+                if (settings.RedownloadListAfter.Value > 0)
                 {
-                    _timer = new Timer(TimeSpan.FromSeconds(Options.Settings.RedownloadListAfter).TotalMilliseconds)
+                    _timer = new Timer(TimeSpan.FromSeconds(settings.RedownloadListAfter.Value).TotalMilliseconds)
                     {
                         AutoReset = false
                     };
@@ -122,24 +125,24 @@ namespace NameThatBeaver
 
         private bool ParseNamesList()
         {
-            string nameListPath = Options.Settings.NamesListLocation;
+            string nameListPath = _settings.NamesListLocation.Value;
             if (string.IsNullOrWhiteSpace(nameListPath))
             {
                 string namesListDefaultLocation = Path.Combine(Common.GetModFolderPath(), "beavers.names");
                 _logger.Info("Location for the list of names is not set");
                 _logger.Info($"Using default location of \"{namesListDefaultLocation}\"");
-                Options.Settings.NamesListLocation = namesListDefaultLocation;
+                _settings.NamesListLocation.SetValue(namesListDefaultLocation);
                 nameListPath = namesListDefaultLocation;
             }
             if (Uri.TryCreate(nameListPath, UriKind.Absolute, out Uri result) && (result.Scheme == Uri.UriSchemeHttp || result.Scheme == Uri.UriSchemeHttps))
             {
-                Options.Settings.NamesListIsRemote = true;
+                _settings.NamesListIsRemote = true;
                 return true;
             }
 
             if (File.Exists(nameListPath))
             {
-                Options.Settings.BeaversNamesFileLocation = nameListPath;
+                _settings.BeaversNamesFileLocation = nameListPath;
                 return true;
             }
 
@@ -149,7 +152,7 @@ namespace NameThatBeaver
 
         private bool DownloadList()
         {
-            Uri.TryCreate(Options.Settings.NamesListLocation, UriKind.Absolute, out Uri result);
+            Uri.TryCreate(_settings.NamesListLocation.Value, UriKind.Absolute, out Uri result);
             _logger.Info(string.Format("Path resovled to remote address '{0}'.", result));
             if (Application.internetReachability == NetworkReachability.NotReachable)
             {
@@ -164,7 +167,11 @@ namespace NameThatBeaver
             {
                 HttpRequestMessage req = new HttpRequestMessage(HttpMethod.Get, result);
                 req.Headers.Add("Accept", "text/plain");
-                HttpResponseMessage response = Task.Run<HttpResponseMessage>(() => client.SendAsync(req, new CancellationTokenSource(TimeSpan.FromSeconds(10.0)).Token)).Result;
+                HttpResponseMessage response = Task.Run<HttpResponseMessage>(() =>
+                    client.SendAsync(
+                        req,
+                        new CancellationTokenSource(TimeSpan.FromSeconds(Constants.DOWNLOAD_TIMEOUT_IN_SECONDS)).Token
+                        )).Result;
                 if (response != null && response.IsSuccessStatusCode)
                 {
                     string mediaType = response.Content.Headers.ContentType.MediaType;
@@ -174,7 +181,10 @@ namespace NameThatBeaver
                         return false;
                     }
                     _logger.Info("List download complete.");
-                    string responseContent = Task.Run<string>(() => response.Content.ReadAsStringAsync(), new CancellationTokenSource(TimeSpan.FromSeconds(5.0)).Token).Result;
+                    string responseContent = Task.Run<string>(() =>
+                        response.Content.ReadAsStringAsync(),
+                        new CancellationTokenSource(TimeSpan.FromSeconds(Constants.HTTP_RESPONSE_READ_TIMEOUT_IN_SECONDS)).Token
+                        ).Result;
                     if (string.IsNullOrWhiteSpace(responseContent))
                     {
                         _logger.Error("Donwloaded list is empty");
@@ -184,7 +194,7 @@ namespace NameThatBeaver
                     string path = Path.Combine(_modFolder, "beavers.names");
                     File.WriteAllText(path, responseContent);
                     _logger.Info("Saved list at '" + path + "'");
-                    Options.Settings.BeaversNamesFileLocation = path;
+                    _settings.BeaversNamesFileLocation = path;
                     return true;
                 }
                 _logger.Error("Download failed");

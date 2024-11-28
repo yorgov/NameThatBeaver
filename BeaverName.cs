@@ -33,7 +33,7 @@ namespace NameThatBeaver
         {
             return string.IsNullOrWhiteSpace(Color) ?
                 Name :
-                $"<color=#{Color}>{Name}";
+                $"<color=#{Color}>{Name}</color>";
         }
 
         public static BeaverName CreateFromString(string str)
@@ -52,7 +52,7 @@ namespace NameThatBeaver
 
         public static BeaverName CreateFromCharacterName(string characterName)
         {
-            var match = Regex.Match(characterName, @"^(<color=\#([a-fA-F0-9]{6})>)(.+)$");
+            var match = Regex.Match(characterName, @"^(<color=\#([a-fA-F0-9]{6})>)(.+)(<\/color>)$");
             string? color = null;
             string name = characterName;
             if (match.Success)

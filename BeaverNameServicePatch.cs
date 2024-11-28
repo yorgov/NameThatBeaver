@@ -19,6 +19,7 @@ namespace NameThatBeaver
         private readonly EventBus _eventBus;
         private static readonly ConsoleLogger _logger = new ConsoleLogger("NameThatBeaver.BeaverNameServicePatch");
         private readonly FileSystemWatcher? _watcher;
+        private readonly NameThatBeaverSettings _settings;
 
         public static bool ModActive
         {
@@ -31,13 +32,14 @@ namespace NameThatBeaver
         }
 
 
-        public BeaverNameServicePatch(EventBus eventBus)
+        public BeaverNameServicePatch(EventBus eventBus, NameThatBeaverSettings settings)
         {
             _eventBus = eventBus;
+            _settings = settings;
             if (!ModActive) return;
             _usedNames = new List<BeaverName>();
 
-            if (Options.Settings.RefreshNamePoolOnFileChange)
+            if (_settings.RefreshNamePoolOnFileChange.Value)
             {
                 _watcher = new FileSystemWatcher
                 {
@@ -47,7 +49,7 @@ namespace NameThatBeaver
                 };
                 _watcher.Changed += Watcher_Changed;
             }
-            _originalNames = File.ReadAllLines(Options.Settings.BeaversNamesFileLocation)
+            _originalNames = File.ReadAllLines(_settings.BeaversNamesFileLocation)
                 .Select(name => BeaverName.CreateFromString(name)).ToArray();
         }
 
@@ -72,7 +74,7 @@ namespace NameThatBeaver
         [OnEvent]
         public void OnCharacterKilled(CharacterKilledEvent characterKilledEvent)
         {
-            if (!ModActive || !Options.Settings.ReuseNames || characterKilledEvent.Character.GetComponentFast<Beaver>() == null)
+            if (!ModActive || !_settings.ReuseNames.Value || characterKilledEvent.Character.GetComponentFast<Beaver>() == null)
                 return;
             Character character = characterKilledEvent.Character;
             if (character.Alive)

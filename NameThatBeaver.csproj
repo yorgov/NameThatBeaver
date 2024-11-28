@@ -15,6 +15,24 @@
     <Reference Include="Castle.Core">
       <HintPath>lib\Castle.Core.dll</HintPath>
     </Reference>
+    <Reference Include="ModSettings.ColorPicker">
+      <HintPath>lib\ModSettings.ColorPicker.dll</HintPath>
+    </Reference>
+    <Reference Include="ModSettings.Common">
+      <HintPath>lib\ModSettings.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="ModSettings.CommonUI">
+      <HintPath>lib\ModSettings.CommonUI.dll</HintPath>
+    </Reference>
+    <Reference Include="ModSettings.Core">
+      <HintPath>lib\ModSettings.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="ModSettings.CoreUI">
+      <HintPath>lib\ModSettings.CoreUI.dll</HintPath>
+    </Reference>
+    <Reference Include="ModSettings.MainMenuUI">
+      <HintPath>lib\ModSettings.MainMenuUI.dll</HintPath>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>lib\Newtonsoft.Json.dll</HintPath>
     </Reference>
@@ -42,6 +60,9 @@
     <Reference Include="Timberborn.PlatformUtilities">
       <HintPath>lib\Timberborn.PlatformUtilities.dll</HintPath>
     </Reference>
+    <Reference Include="Timberborn.SettingsSystem">
+      <HintPath>lib\Timberborn.SettingsSystem.dll</HintPath>
+    </Reference>
     <Reference Include="Timberborn.SettlementNameSystem">
       <HintPath>lib\Timberborn.SettlementNameSystem.dll</HintPath>
     </Reference>
@@ -57,11 +78,11 @@
     <None Update="beavers.names">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="manifest.json">
+    <None Update="Localizations\enUS.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="NameThatBeaverSettings.json">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <None Update="manifest.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="thumbnail.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

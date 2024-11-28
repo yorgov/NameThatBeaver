@@ -1,21 +1,43 @@
-﻿using Newtonsoft.Json;
+﻿using Castle.Core.Logging;
+using ModSettings.Core;
+using System.Diagnostics;
+using Timberborn.Modding;
+using Timberborn.SettingsSystem;
+using UnityEngine;
 
 namespace NameThatBeaver
 {
-    public class NameThatBeaverSettings
+    public class NameThatBeaverSettings : ModSettingsOwner
     {
-        public string NamesListLocation { get; set; } = string.Empty;
+        private readonly ConsoleLogger _logger = new ConsoleLogger("NameThatBeaver.NameThatBeaverSettings");
+        public NameThatBeaverSettings(
+            ISettings settings,
+            ModSettingsOwnerRegistry modSettingsOwnerRegistry,
+            ModRepository modRepository) : base(
+                settings, modSettingsOwnerRegistry, modRepository)
+        {
+            _logger.Info("Ctor Hit!");
 
-        public bool ReuseNames { get; set; } = false;
+        }
 
-        public int RedownloadListAfter { get; set; } = 0;
+        public ModSetting<string> NamesListLocation { get; } =
+            new ModSetting<string>(string.Empty, ModSettingDescriptor.CreateLocalized($"{Constants.MOD_NAME}.Location"));
 
-        public bool RefreshNamePoolOnFileChange { get; set; } = false;
+        public ModSetting<bool> ReuseNames { get; } =
+            new ModSetting<bool>(true, ModSettingDescriptor.CreateLocalized($"{Constants.MOD_NAME}.ReuseNames"));
 
-        [JsonIgnore]
+        public ModSetting<int> RedownloadListAfter { get; } =
+            new ModSetting<int>(0, ModSettingDescriptor.CreateLocalized($"{Constants.MOD_NAME}.Redownload"));
+
+        public ModSetting<bool> RefreshNamePoolOnFileChange { get; } =
+            new ModSetting<bool>(false, ModSettingDescriptor.CreateLocalized($"{Constants.MOD_NAME}.RefreshPool"));
+
         public bool NamesListIsRemote { get; set; }
 
-        [JsonIgnore]
         public string BeaversNamesFileLocation { get; set; } = string.Empty;
+
+        protected override string ModId => Constants.MOD_NAME;
+
+        public override string HeaderLocKey => $"{Constants.MOD_NAME}.SettingHeader";
     }
 }

@@ -7,7 +7,7 @@ namespace NameThatBeaver.Configurators
     {
         public void Configure(IContainerDefinition containerDefinition)
         {
-            containerDefinition.Bind<NameThatBeaverInitializer>().AsSingleton();
+            containerDefinition.Bind<NameThatBeaverInitializer>().AsSingleton();            
         }
     }
 }

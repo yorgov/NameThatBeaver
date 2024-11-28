@@ -1,0 +1,6 @@
+ID,Text,Comment
+NameThatBeaver.Location,Where is beaver.names located,
+NameThatBeaver.ReuseNames,Should the names be reused once a beaver dies,
+NameThatBeaver.Redownload,If Location is a URL how often (in seconds) should the file be redownloaded,
+NameThatBeaver.RefreshPool,Should the name pool be refreshed on file change,
+NameThatBeaver.SettingHeader, Name That Beaver Settings,
